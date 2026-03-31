@@ -14,6 +14,7 @@ import { t, formatTimeAgo } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import NewsExplainer from '@/components/news/NewsExplainer';
 
 const ArticleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -168,6 +169,8 @@ const ArticleDetail: React.FC = () => {
       </div>
 
       <Separator />
+
+      <NewsExplainer article={article} />
 
       <CommentSection articleId={article.id} />
 
