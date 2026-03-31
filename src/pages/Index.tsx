@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Filter } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, Filter, RefreshCw, Radio, Volume2, VolumeX } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import NewsCard from '@/components/news/NewsCard';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -13,27 +13,58 @@ import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const CATEGORIES = ['all', 'politics', 'sports', 'technology', 'business', 'entertainment', 'world', 'general'];
-const SOURCES = ['All Sources', 'NDTV', 'Times of India', 'The Hindu', 'India Today', 'Hindustan Times'];
+const ALL_SOURCES = 'All Sources';
 
 const Index: React.FC = () => {
+  const queryClient = useQueryClient();
   const { language } = useLanguage();
   const { user } = useAuth();
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('All Sources');
+  const [sourceFilter, setSourceFilter] = useState(ALL_SOURCES);
   const [showFilters, setShowFilters] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [isSpeakingHeadlines, setIsSpeakingHeadlines] = useState(false);
 
-  const { data: articles = [], isLoading } = useQuery({
+  const { data: articles = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['articles', category, search, sourceFilter],
     queryFn: async () => {
-      let query = supabase.from('articles').select('*').order('published_at', { ascending: false }).limit(50);
+      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      let query = supabase
+        .from('articles')
+        .select('*')
+        .gte('published_at', cutoff)
+        .order('published_at', { ascending: false })
+        .limit(150);
+
       if (category !== 'all') query = query.eq('category', category);
       if (search) query = query.ilike('title', `%${search}%`);
-      if (sourceFilter !== 'All Sources') query = query.eq('source', sourceFilter);
+      if (sourceFilter !== ALL_SOURCES) query = query.eq('source', sourceFilter);
       const { data } = await query;
       return data || [];
     },
   });
+
+  const syncLatestNews = useCallback(async () => {
+    await supabase.functions.invoke('fetch-rss').catch(() => null);
+    setLastSyncedAt(new Date());
+    await queryClient.invalidateQueries({ queryKey: ['articles'] });
+  }, [queryClient]);
+
+  useEffect(() => {
+    syncLatestNews();
+  }, [syncLatestNews]);
+
+  useEffect(() => {
+    if (!autoRefreshEnabled) return;
+
+    const timer = setInterval(() => {
+      syncLatestNews();
+    }, 60_000);
+
+    return () => clearInterval(timer);
+  }, [autoRefreshEnabled, syncLatestNews]);
 
   const { data: userLikes = [] } = useQuery({
     queryKey: ['likes', user?.id],
@@ -55,6 +86,39 @@ const Index: React.FC = () => {
     enabled: !!user,
   });
 
+  const sources = useMemo(
+    () => [ALL_SOURCES, ...Array.from(new Set(articles.map(article => article.source))).sort()],
+    [articles]
+  );
+
+  const topSource = useMemo(() => {
+    const freq = new Map<string, number>();
+    articles.forEach(a => freq.set(a.source, (freq.get(a.source) || 0) + 1));
+    return [...freq.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
+  }, [articles]);
+
+  const speechText = useMemo(() => {
+    const headlines = articles.slice(0, 5).map((a, i) => `${i + 1}. ${a.title}`).join('। ');
+    return `पिछले 48 घंटों की प्रमुख खबरें। ${headlines || 'अभी कोई खबर उपलब्ध नहीं है।'}`;
+  }, [articles]);
+
+  const playHeadlines = () => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(speechText);
+    utterance.lang = 'hi-IN';
+    utterance.rate = 0.95;
+    utterance.onend = () => setIsSpeakingHeadlines(false);
+    utterance.onerror = () => setIsSpeakingHeadlines(false);
+    setIsSpeakingHeadlines(true);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopHeadlines = () => {
+    window.speechSynthesis.cancel();
+    setIsSpeakingHeadlines(false);
+  };
+
   const categoryLabels: Record<string, string> = {
     all: t('allCategories', language),
     politics: t('politics', language),
@@ -68,13 +132,52 @@ const Index: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Hero branding */}
       <div className="rounded-xl bg-gradient-to-r from-primary to-primary/80 p-6 text-primary-foreground">
         <h1 className="text-2xl font-bold">{t('appName', language)}</h1>
         <p className="mt-1 text-sm opacity-80">{t('tagline', language)}</p>
       </div>
 
-      {/* Search & Filters */}
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="pulse-card rounded-lg border p-3">
+          <p className="text-xs text-muted-foreground">Stories (48h)</p>
+          <p className="text-xl font-semibold">{articles.length}</p>
+        </div>
+        <div className="pulse-card rounded-lg border p-3">
+          <p className="text-xs text-muted-foreground">Active Sources</p>
+          <p className="text-xl font-semibold">{Math.max(0, sources.length - 1)}</p>
+        </div>
+        <div className="pulse-card rounded-lg border p-3">
+          <p className="text-xs text-muted-foreground">Top Source</p>
+          <p className="truncate text-xl font-semibold">{topSource}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-sm text-muted-foreground">
+        <Radio className="h-4 w-4 text-primary" />
+        Latest 48 hours only
+        <span>•</span>
+        Auto-refresh every 1 minute
+        {lastSyncedAt ? <><span>•</span><span>Last sync: {lastSyncedAt.toLocaleTimeString()}</span></> : null}
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={() => syncLatestNews()}>
+          <RefreshCw className={`mr-1 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} /> Refresh now
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setAutoRefreshEnabled(v => !v)}>
+          {autoRefreshEnabled ? 'Pause auto refresh' : 'Resume auto refresh'}
+        </Button>
+      </div>
+
+      <div className="pulse-card rounded-lg border p-3">
+        <p className="mb-2 text-sm font-medium">Hindi Audio Headlines</p>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={playHeadlines} disabled={isSpeakingHeadlines}>
+            <Volume2 className="mr-1 h-4 w-4" /> सुनें
+          </Button>
+          <Button size="sm" variant="outline" onClick={stopHeadlines} disabled={!isSpeakingHeadlines}>
+            <VolumeX className="mr-1 h-4 w-4" /> रोकें
+          </Button>
+        </div>
+      </div>
+
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -93,22 +196,21 @@ const Index: React.FC = () => {
       {showFilters && (
         <div className="flex gap-2 animate-fade-in">
           <Select value={sourceFilter} onValueChange={setSourceFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[220px]">
               <SelectValue placeholder={t('source', language)} />
             </SelectTrigger>
             <SelectContent>
-              {SOURCES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
-          {(sourceFilter !== 'All Sources' || search) && (
-            <Button variant="ghost" size="sm" onClick={() => { setSourceFilter('All Sources'); setSearch(''); }}>
+          {(sourceFilter !== ALL_SOURCES || search) && (
+            <Button variant="ghost" size="sm" onClick={() => { setSourceFilter(ALL_SOURCES); setSearch(''); refetch(); }}>
               {t('clearFilters', language)}
             </Button>
           )}
         </div>
       )}
 
-      {/* Category Tabs */}
       <Tabs value={category} onValueChange={setCategory}>
         <TabsList className="w-full justify-start overflow-x-auto">
           {CATEGORIES.map(cat => (
@@ -119,7 +221,6 @@ const Index: React.FC = () => {
         </TabsList>
       </Tabs>
 
-      {/* Articles Grid */}
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -133,7 +234,7 @@ const Index: React.FC = () => {
       ) : articles.length === 0 ? (
         <div className="py-20 text-center text-muted-foreground">
           <p className="text-lg">{t('noResults', language)}</p>
-          <p className="mt-2 text-sm">News articles will appear here once the RSS feed is fetched.</p>
+          <p className="mt-2 text-sm">Try broadening filters or click Refresh now to fetch latest RSS updates.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

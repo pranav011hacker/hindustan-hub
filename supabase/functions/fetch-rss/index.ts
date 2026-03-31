@@ -10,11 +10,20 @@ const RSS_FEEDS = [
   { url: 'https://feeds.feedburner.com/ndtvnews-top-stories', source: 'NDTV', category: 'general' },
   { url: 'https://timesofindia.indiatimes.com/rssfeedstopstories.cms', source: 'Times of India', category: 'general' },
   { url: 'https://www.thehindu.com/news/national/feeder/default.rss', source: 'The Hindu', category: 'politics' },
-  { url: 'https://feeds.feedburner.com/ndtvprofit-latest', source: 'NDTV', category: 'business' },
-  { url: 'https://timesofindia.indiatimes.com/rssfeeds/4719148.cms', source: 'Times of India', category: 'world' },
+  { url: 'https://www.indiatoday.in/rss/home', source: 'India Today', category: 'general' },
+  { url: 'https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml', source: 'Hindustan Times', category: 'general' },
+  { url: 'https://www.firstpost.com/commonfeeds/v1/mfp/rss/india.xml', source: 'Firstpost', category: 'general' },
+  { url: 'https://www.news18.com/rss/india.xml', source: 'News18', category: 'general' },
+  { url: 'https://indianexpress.com/section/india/feed/', source: 'Indian Express', category: 'general' },
+  { url: 'https://www.business-standard.com/rss/home_page_top_stories.rss', source: 'Business Standard', category: 'business' },
+  { url: 'https://www.moneycontrol.com/rss/business.xml', source: 'Moneycontrol', category: 'business' },
   { url: 'https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms', source: 'Times of India', category: 'technology' },
+  { url: 'https://www.thehindu.com/sci-tech/technology/feeder/default.rss', source: 'The Hindu', category: 'technology' },
   { url: 'https://timesofindia.indiatimes.com/rssfeeds/4719161.cms', source: 'Times of India', category: 'sports' },
+  { url: 'https://www.hindustantimes.com/feeds/rss/sports/rssfeed.xml', source: 'Hindustan Times', category: 'sports' },
   { url: 'https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms', source: 'Times of India', category: 'entertainment' },
+  { url: 'https://www.indiatoday.in/rss/1206578', source: 'India Today', category: 'world' },
+  { url: 'https://timesofindia.indiatimes.com/rssfeeds/4719148.cms', source: 'Times of India', category: 'world' },
 ];
 
 function extractImageUrl(item: string): string | null {
