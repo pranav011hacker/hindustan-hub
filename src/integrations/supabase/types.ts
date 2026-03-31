@@ -14,16 +14,359 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      articles: {
+        Row: {
+          category: string
+          comment_count: number
+          content: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          like_count: number
+          published_at: string | null
+          source: string
+          source_url: string
+          title: string
+        }
+        Insert: {
+          category?: string
+          comment_count?: number
+          content?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          like_count?: number
+          published_at?: string | null
+          source: string
+          source_url: string
+          title: string
+        }
+        Update: {
+          category?: string
+          comment_count?: number
+          content?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          like_count?: number
+          published_at?: string | null
+          source?: string
+          source_url?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      bookmarks: {
+        Row: {
+          article_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmarks_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          article_id: string
+          content: string
+          created_at: string
+          downvotes: number
+          id: string
+          parent_id: string | null
+          updated_at: string
+          upvotes: number
+          user_id: string
+        }
+        Insert: {
+          article_id: string
+          content: string
+          created_at?: string
+          downvotes?: number
+          id?: string
+          parent_id?: string | null
+          updated_at?: string
+          upvotes?: number
+          user_id: string
+        }
+        Update: {
+          article_id?: string
+          content?: string
+          created_at?: string
+          downvotes?: number
+          id?: string
+          parent_id?: string | null
+          updated_at?: string
+          upvotes?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_issues: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          id: string
+          protest_count: number
+          status: string
+          support_count: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description: string
+          id?: string
+          protest_count?: number
+          status?: string
+          support_count?: number
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          protest_count?: number
+          status?: string
+          support_count?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      issue_votes: {
+        Row: {
+          created_at: string
+          id: string
+          issue_id: string
+          user_id: string
+          vote_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issue_id: string
+          user_id: string
+          vote_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issue_id?: string
+          user_id?: string
+          vote_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_votes_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "community_issues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      likes: {
+        Row: {
+          article_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "likes_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      petition_signatures: {
+        Row: {
+          created_at: string
+          id: string
+          petition_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          petition_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          petition_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "petition_signatures_petition_id_fkey"
+            columns: ["petition_id"]
+            isOneToOne: false
+            referencedRelation: "petitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      petitions: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          signature_count: number
+          status: string
+          target_goal: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          signature_count?: number
+          status?: string
+          target_goal?: number
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          signature_count?: number
+          status?: string
+          target_goal?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          preferred_language: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          preferred_language?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          preferred_language?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +493,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
