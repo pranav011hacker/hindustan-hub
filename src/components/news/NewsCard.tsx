@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { t, formatTimeAgo } from '@/lib/i18n';
+import { buildHindiSummary } from '@/lib/hindiSummary';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
@@ -61,6 +62,8 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, isLiked = false, isBookmar
     general: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
   };
 
+  const hindiSummary = buildHindiSummary(article);
+
   return (
     <Link to={`/article/${article.id}`}>
       <Card className="group overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5 animate-fade-in">
@@ -90,9 +93,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, isLiked = false, isBookmar
             {article.title}
           </h3>
 
-          {article.description && (
-            <p className="mb-3 line-clamp-2 text-sm text-muted-foreground">{article.description}</p>
-          )}
+          <p className="mb-3 line-clamp-3 text-sm text-muted-foreground">{hindiSummary}</p>
 
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" className="h-8 gap-1 px-2" onClick={handleLike}>

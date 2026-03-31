@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import NewsExplainer from '@/components/news/NewsExplainer';
+import { buildHindiSummary } from '@/lib/hindiSummary';
 
 const ArticleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -102,6 +103,8 @@ const ArticleDetail: React.FC = () => {
     return <div className="py-20 text-center text-muted-foreground">Article not found</div>;
   }
 
+  const hindiSummary = buildHindiSummary(article);
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Link to="/">
@@ -132,15 +135,10 @@ const ArticleDetail: React.FC = () => {
 
         <h1 className="text-2xl font-bold leading-tight">{article.title}</h1>
 
-        {article.description && (
-          <p className="text-lg text-muted-foreground">{article.description}</p>
-        )}
-
-        {article.content && (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <p>{article.content}</p>
-          </div>
-        )}
+        <div className="rounded-lg border bg-muted/30 p-4">
+          <h2 className="mb-2 text-base font-semibold">हिंदी सारांश</h2>
+          <p className="text-base leading-relaxed text-muted-foreground">{hindiSummary}</p>
+        </div>
 
         <div className="flex items-center gap-2 pt-2">
           <Button variant={isLiked ? 'default' : 'outline'} size="sm" className="gap-1" onClick={handleLike}>

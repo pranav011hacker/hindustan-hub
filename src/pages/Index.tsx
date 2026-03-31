@@ -131,13 +131,13 @@ const Index: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl bg-gradient-to-r from-primary to-primary/80 p-6 text-primary-foreground">
-        <h1 className="text-2xl font-bold">{t('appName', language)}</h1>
+    <div className="space-y-4 sm:space-y-5">
+      <div className="rounded-xl bg-gradient-to-r from-primary to-primary/80 p-4 text-primary-foreground sm:p-6">
+        <h1 className="text-xl font-bold sm:text-2xl">{t('appName', language)}</h1>
         <p className="mt-1 text-sm opacity-80">{t('tagline', language)}</p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="pulse-card rounded-lg border p-3">
           <p className="text-xs text-muted-foreground">Stories (48h)</p>
           <p className="text-xl font-semibold">{articles.length}</p>
@@ -152,23 +152,23 @@ const Index: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-xs text-muted-foreground sm:text-sm">
         <Radio className="h-4 w-4 text-primary" />
-        Latest 48 hours only
+        सिर्फ पिछले 48 घंटे की ताज़ा खबरें
         <span>•</span>
-        Auto-refresh every 1 minute
-        {lastSyncedAt ? <><span>•</span><span>Last sync: {lastSyncedAt.toLocaleTimeString()}</span></> : null}
+        हर 1 मिनट में ऑटो-रिफ्रेश
+        {lastSyncedAt ? <><span>•</span><span>अंतिम सिंक: {lastSyncedAt.toLocaleTimeString()}</span></> : null}
         <Button variant="ghost" size="sm" className="ml-auto" onClick={() => syncLatestNews()}>
-          <RefreshCw className={`mr-1 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} /> Refresh now
+          <RefreshCw className={`mr-1 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} /> अभी रिफ्रेश करें
         </Button>
         <Button variant="outline" size="sm" onClick={() => setAutoRefreshEnabled(v => !v)}>
-          {autoRefreshEnabled ? 'Pause auto refresh' : 'Resume auto refresh'}
+          {autoRefreshEnabled ? 'ऑटो रिफ्रेश रोकें' : 'ऑटो रिफ्रेश चालू करें'}
         </Button>
       </div>
 
       <div className="pulse-card rounded-lg border p-3">
         <p className="mb-2 text-sm font-medium">Hindi Audio Headlines</p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 sm:items-center">
           <Button size="sm" onClick={playHeadlines} disabled={isSpeakingHeadlines}>
             <Volume2 className="mr-1 h-4 w-4" /> सुनें
           </Button>
@@ -178,7 +178,7 @@ const Index: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -194,9 +194,9 @@ const Index: React.FC = () => {
       </div>
 
       {showFilters && (
-        <div className="flex gap-2 animate-fade-in">
+        <div className="flex flex-col gap-2 sm:flex-row animate-fade-in">
           <Select value={sourceFilter} onValueChange={setSourceFilter}>
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-full sm:w-[220px]">
               <SelectValue placeholder={t('source', language)} />
             </SelectTrigger>
             <SelectContent>
@@ -212,7 +212,7 @@ const Index: React.FC = () => {
       )}
 
       <Tabs value={category} onValueChange={setCategory}>
-        <TabsList className="w-full justify-start overflow-x-auto">
+        <TabsList className="w-full justify-start overflow-x-auto whitespace-nowrap">
           {CATEGORIES.map(cat => (
             <TabsTrigger key={cat} value={cat} className="text-xs">
               {categoryLabels[cat]}

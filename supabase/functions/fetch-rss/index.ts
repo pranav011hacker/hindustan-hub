@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const MAX_SOURCE_COUNT = 10;
+const NEWS_WINDOW_HOURS = 48;
+
 const RSS_FEEDS = [
   { url: 'https://feeds.feedburner.com/ndtvnews-top-stories', source: 'NDTV', category: 'general' },
   { url: 'https://timesofindia.indiatimes.com/rssfeedstopstories.cms', source: 'Times of India', category: 'general' },
@@ -17,13 +20,6 @@ const RSS_FEEDS = [
   { url: 'https://indianexpress.com/section/india/feed/', source: 'Indian Express', category: 'general' },
   { url: 'https://www.business-standard.com/rss/home_page_top_stories.rss', source: 'Business Standard', category: 'business' },
   { url: 'https://www.moneycontrol.com/rss/business.xml', source: 'Moneycontrol', category: 'business' },
-  { url: 'https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms', source: 'Times of India', category: 'technology' },
-  { url: 'https://www.thehindu.com/sci-tech/technology/feeder/default.rss', source: 'The Hindu', category: 'technology' },
-  { url: 'https://timesofindia.indiatimes.com/rssfeeds/4719161.cms', source: 'Times of India', category: 'sports' },
-  { url: 'https://www.hindustantimes.com/feeds/rss/sports/rssfeed.xml', source: 'Hindustan Times', category: 'sports' },
-  { url: 'https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms', source: 'Times of India', category: 'entertainment' },
-  { url: 'https://www.indiatoday.in/rss/1206578', source: 'India Today', category: 'world' },
-  { url: 'https://timesofindia.indiatimes.com/rssfeeds/4719148.cms', source: 'Times of India', category: 'world' },
 ];
 
 function extractImageUrl(item: string): string | null {
@@ -39,14 +35,22 @@ function extractImageUrl(item: string): string | null {
 }
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').trim();
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .trim();
 }
 
 function parseRssItems(xml: string): Array<{ title: string; description: string; link: string; pubDate: string; imageUrl: string | null }> {
   const items: Array<{ title: string; description: string; link: string; pubDate: string; imageUrl: string | null }> = [];
   const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
 
-  for (const item of itemMatches.slice(0, 15)) {
+  for (const item of itemMatches.slice(0, 20)) {
     const title = stripHtml((item.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '');
     const description = stripHtml((item.match(/<description>([\s\S]*?)<\/description>/) || [])[1] || '');
     const link = ((item.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
@@ -60,6 +64,15 @@ function parseRssItems(xml: string): Array<{ title: string; description: string;
   return items;
 }
 
+function isWithinWindow(isoDate: string, windowHours: number): boolean {
+  const time = new Date(isoDate).getTime();
+  if (Number.isNaN(time)) return false;
+
+  const now = Date.now();
+  const diffMs = now - time;
+  return diffMs >= 0 && diffMs <= windowHours * 60 * 60 * 1000;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -70,10 +83,13 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    const cutoffIso = new Date(Date.now() - NEWS_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+
     let totalInserted = 0;
     let totalErrors = 0;
+    let totalSkipped = 0;
 
-    for (const feed of RSS_FEEDS) {
+    for (const feed of RSS_FEEDS.slice(0, MAX_SOURCE_COUNT)) {
       try {
         const response = await fetch(feed.url, {
           headers: { 'User-Agent': 'HindustanAI/1.0' },
@@ -89,6 +105,13 @@ Deno.serve(async (req) => {
         const items = parseRssItems(xml);
 
         for (const item of items) {
+          const publishedAt = item.pubDate ? new Date(item.pubDate).toISOString() : null;
+
+          if (!publishedAt || !isWithinWindow(publishedAt, NEWS_WINDOW_HOURS)) {
+            totalSkipped++;
+            continue;
+          }
+
           const { error } = await supabase.from('articles').upsert(
             {
               title: item.title.substring(0, 500),
@@ -97,12 +120,16 @@ Deno.serve(async (req) => {
               source_url: item.link,
               image_url: item.imageUrl,
               category: feed.category,
-              published_at: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+              published_at: publishedAt,
             },
             { onConflict: 'source_url' }
           );
 
-          if (!error) totalInserted++;
+          if (error) {
+            totalErrors++;
+          } else {
+            totalInserted++;
+          }
         }
       } catch (feedError) {
         console.error(`Error processing feed ${feed.source}:`, feedError);
@@ -110,8 +137,10 @@ Deno.serve(async (req) => {
       }
     }
 
+    await supabase.from('articles').delete().lt('published_at', cutoffIso);
+
     return new Response(
-      JSON.stringify({ success: true, inserted: totalInserted, errors: totalErrors }),
+      JSON.stringify({ success: true, inserted: totalInserted, skipped: totalSkipped, errors: totalErrors, sourceCount: MAX_SOURCE_COUNT }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
