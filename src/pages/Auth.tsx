@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, KeyRound } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,13 +10,14 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { useLanguage } from '@/contexts/LanguageContext';
 import { t } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 type AuthStep = 'form' | 'otp';
 
 const Auth: React.FC = () => {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -26,14 +27,22 @@ const Auth: React.FC = () => {
   const [step, setStep] = useState<AuthStep>('form');
   const [otp, setOtp] = useState('');
 
+  useEffect(() => {
+    if (user) navigate('/', { replace: true });
+  }, [navigate, user]);
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!data.user?.email_confirmed_at) {
+          await supabase.auth.signOut();
+          throw new Error(language === 'hi' ? 'कृपया लॉगिन से पहले अपना ईमेल सत्यापित करें।' : 'Please verify your email before logging in.');
+        }
         navigate('/');
       } else {
         // Sign up → send OTP for email verification
@@ -77,12 +86,30 @@ const Auth: React.FC = () => {
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth`,
+        },
       });
-      if (result.error) {
-        toast({ title: 'Error', description: result.error.message, variant: 'destructive' });
-      }
+      if (error) throw error;
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) throw error;
+      toast({ title: language === 'hi' ? 'OTP दोबारा भेजा गया' : 'OTP resent. Check your inbox.' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
@@ -132,6 +159,9 @@ const Auth: React.FC = () => {
               </Button>
               <button onClick={() => setStep('form')} className="w-full text-center text-sm text-muted-foreground hover:text-primary">
                 ← {language === 'hi' ? 'वापस जाएँ' : 'Back'}
+              </button>
+              <button onClick={handleResendOtp} className="w-full text-center text-sm text-primary hover:underline" disabled={loading}>
+                {language === 'hi' ? 'OTP दोबारा भेजें' : 'Resend OTP'}
               </button>
             </div>
           ) : (
