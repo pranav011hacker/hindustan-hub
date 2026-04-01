@@ -1,21 +1,8 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 1rem;
+/* Scrollbar hide utility */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
-
-.news-explainer-card {
-  border: 1px solid hsl(var(--border));
-  background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--muted) / 0.6));
-  box-shadow: 0 10px 30px hsl(var(--primary) / 0.08);
-}
-
-.pulse-card {
-  background: radial-gradient(circle at top right, hsl(var(--primary) / 0.16), transparent 45%), hsl(var(--card));
-}
-
-@media (min-width: 1024px) {
-  #root {
-    padding: 1.5rem;
-  }
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

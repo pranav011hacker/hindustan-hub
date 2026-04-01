@@ -29,7 +29,6 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, isLiked = false, isBookmar
     e.preventDefault();
     e.stopPropagation();
     if (!user) { toast({ title: 'Please sign in to like articles' }); return; }
-
     if (isLiked) {
       await supabase.from('likes').delete().eq('user_id', user.id).eq('article_id', article.id);
     } else {
@@ -43,7 +42,6 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, isLiked = false, isBookmar
     e.preventDefault();
     e.stopPropagation();
     if (!user) { toast({ title: 'Please sign in to bookmark articles' }); return; }
-
     if (isBookmarked) {
       await supabase.from('bookmarks').delete().eq('user_id', user.id).eq('article_id', article.id);
     } else {
@@ -52,65 +50,55 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, isLiked = false, isBookmar
     queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
   };
 
-  const categoryColors: Record<string, string> = {
-    politics: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    sports: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    technology: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-    business: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-    entertainment: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
-    world: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
-    general: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
-  };
-
   const hindiSummary = buildHindiSummary(article);
 
   return (
     <Link to={`/article/${article.id}`}>
-      <Card className="group overflow-hidden transition-all hover:shadow-lg hover:-translate-y-0.5 animate-fade-in">
+      <Card className="news-card-pro group overflow-hidden bg-card border animate-fade-in">
         {article.image_url && (
-          <div className="aspect-video overflow-hidden">
+          <div className="aspect-video overflow-hidden relative">
             <img
               src={article.image_url}
               alt={article.title}
-              className="h-full w-full object-cover transition-transform group-hover:scale-105"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
               loading="lazy"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+            <Badge className="absolute top-3 left-3 bg-primary/90 text-primary-foreground text-[10px] font-semibold backdrop-blur-sm">
+              {t(article.category as any, language)}
+            </Badge>
           </div>
         )}
         <CardContent className="p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <Badge variant="secondary" className={categoryColors[article.category] || categoryColors.general}>
-              {t(article.category as any, language)}
-            </Badge>
-            <span className="text-xs text-muted-foreground">{article.source}</span>
-            <span className="text-xs text-muted-foreground">
-              {article.published_at ? formatTimeAgo(article.published_at, language) : ''}
-            </span>
+          <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground/70">{article.source}</span>
+            <span className="h-1 w-1 rounded-full bg-muted-foreground/40" />
+            <span>{article.published_at ? formatTimeAgo(article.published_at, language) : ''}</span>
           </div>
 
-          <h3 className="mb-2 line-clamp-2 text-base font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
+          <h3 className="mb-2 line-clamp-2 text-base font-bold leading-snug text-foreground group-hover:text-primary transition-colors">
             {article.title}
           </h3>
 
-          <p className="mb-3 line-clamp-3 text-sm text-muted-foreground">{hindiSummary}</p>
+          <p className="mb-3 line-clamp-2 text-sm text-muted-foreground leading-relaxed">{hindiSummary}</p>
 
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="h-8 gap-1 px-2" onClick={handleLike}>
-              <Heart className={`h-4 w-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+          <div className="flex items-center gap-1 pt-1 border-t border-border/50">
+            <Button variant="ghost" size="sm" className="h-8 gap-1 px-2 rounded-lg" onClick={handleLike}>
+              <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-destructive text-destructive' : ''}`} />
               <span className="text-xs">{article.like_count}</span>
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 gap-1 px-2">
-              <MessageCircle className="h-4 w-4" />
+            <Button variant="ghost" size="sm" className="h-8 gap-1 px-2 rounded-lg">
+              <MessageCircle className="h-3.5 w-3.5" />
               <span className="text-xs">{article.comment_count}</span>
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 gap-1 px-2" onClick={handleBookmark}>
-              <Bookmark className={`h-4 w-4 ${isBookmarked ? 'fill-saffron text-saffron' : ''}`} />
+            <Button variant="ghost" size="sm" className="h-8 px-2 rounded-lg" onClick={handleBookmark}>
+              <Bookmark className={`h-3.5 w-3.5 ${isBookmarked ? 'fill-accent text-accent' : ''}`} />
             </Button>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-2 opacity-50 cursor-not-allowed" disabled>
-                  <Share2 className="h-4 w-4" />
+                <Button variant="ghost" size="sm" className="h-8 px-2 rounded-lg opacity-40 cursor-not-allowed" disabled>
+                  <Share2 className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{t('shareNotAvailable', language)}</TooltipContent>
