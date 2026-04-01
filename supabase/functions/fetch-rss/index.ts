@@ -13,11 +13,11 @@ const RSS_FEEDS = [
   { url: 'https://www.thehindu.com/news/national/feeder/default.rss', source: 'The Hindu', category: 'politics' },
   { url: 'https://www.indiatoday.in/rss/home', source: 'India Today', category: 'general' },
   { url: 'https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml', source: 'Hindustan Times', category: 'general' },
-  { url: 'https://www.firstpost.com/commonfeeds/v1/mfp/rss/india.xml', source: 'Firstpost', category: 'general' },
-  { url: 'https://www.news18.com/rss/india.xml', source: 'News18', category: 'general' },
-  { url: 'https://indianexpress.com/section/india/feed/', source: 'Indian Express', category: 'general' },
-  { url: 'https://www.business-standard.com/rss/home_page_top_stories.rss', source: 'Business Standard', category: 'business' },
-  { url: 'https://www.moneycontrol.com/rss/business.xml', source: 'Moneycontrol', category: 'business' },
+  { url: 'https://feeds.feedburner.com/ndtvprofit-latest', source: 'NDTV Profit', category: 'business' },
+  { url: 'https://timesofindia.indiatimes.com/rssfeeds/4719148.cms', source: 'TOI Sports', category: 'sports' },
+  { url: 'https://timesofindia.indiatimes.com/rssfeeds/5880659.cms', source: 'TOI Tech', category: 'technology' },
+  { url: 'https://www.thehindu.com/entertainment/feeder/default.rss', source: 'The Hindu Entertainment', category: 'entertainment' },
+  { url: 'https://www.indiatoday.in/rss/1206578', source: 'India Today World', category: 'world' },
 ];
 
 function extractImageUrl(item: string): string | null {
