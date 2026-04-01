@@ -37,11 +37,6 @@ const Index: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
-  // Require login
-  if (!authLoading && !user) {
-    return <Navigate to="/auth" replace />;
-  }
-
   const { data: articles = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['articles', category, search, sourceFilter],
     queryFn: async () => {
@@ -103,7 +98,7 @@ const Index: React.FC = () => {
     [articles]
   );
 
-  const categoryLabels: Record<string, string> = {
+  const categoryLabels: Record<string, string> = useMemo(() => ({
     all: t('allCategories', language),
     politics: t('politics', language),
     sports: t('sports', language),
@@ -112,9 +107,8 @@ const Index: React.FC = () => {
     entertainment: t('entertainment', language),
     world: t('world', language),
     general: t('general', language),
-  };
+  }), [language]);
 
-  // Group articles by category for section view
   const sectionArticles = useMemo(() => {
     if (category !== 'all') return null;
     const grouped: Record<string, typeof articles> = {};
@@ -126,7 +120,11 @@ const Index: React.FC = () => {
   }, [articles, category]);
 
   const topStories = useMemo(() => articles.slice(0, 3), [articles]);
-  const filteredArticles = category !== 'all' ? articles : [];
+
+  // Auth gate - after all hooks
+  if (!authLoading && !user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   if (authLoading) {
     return (
@@ -244,7 +242,6 @@ const Index: React.FC = () => {
           <p className="mt-1 text-sm">Try broadening your filters or refreshing</p>
         </div>
       ) : category !== 'all' ? (
-        /* Filtered single category */
         <div>
           <h2 className="section-header text-lg font-bold mb-4">{categoryLabels[category]}</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -254,9 +251,7 @@ const Index: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* All categories - sectioned */
         <div className="space-y-8">
-          {/* Top Stories */}
           {topStories.length > 0 && (
             <section>
               <h2 className="section-header text-lg font-bold mb-4 flex items-center gap-2">
@@ -271,7 +266,6 @@ const Index: React.FC = () => {
             </section>
           )}
 
-          {/* Category Sections */}
           {sectionArticles && Object.entries(sectionArticles)
             .sort(([, a], [, b]) => b.length - a.length)
             .map(([cat, catArticles]) => (
