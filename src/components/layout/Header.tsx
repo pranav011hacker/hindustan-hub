@@ -20,14 +20,14 @@ const Header: React.FC = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-lg">
+    <header className="sticky top-0 z-50 glass-card border-b">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <span className="text-lg font-bold text-primary-foreground">H</span>
+        <Link to="/" className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl hero-gradient relative">
+            <span className="relative z-10 text-lg font-black text-primary-foreground">H</span>
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold text-foreground">{t('appName', language)}</h1>
+            <h1 className="text-lg font-bold text-foreground tracking-tight">{t('appName', language)}</h1>
           </div>
         </Link>
 
@@ -37,7 +37,7 @@ const Header: React.FC = () => {
               <Button
                 variant={location.pathname === item.path ? 'default' : 'ghost'}
                 size="sm"
-                className="gap-2"
+                className={`gap-2 rounded-xl ${location.pathname === item.path ? 'bg-gradient-to-r from-primary to-primary/80' : ''}`}
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
@@ -46,39 +46,29 @@ const Header: React.FC = () => {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
-            title={t('language', language)}
-          >
+        <div className="flex items-center gap-1.5">
+          <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')} title={t('language', language)}>
             <Globe className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            title={theme === 'light' ? t('darkMode', language) : t('lightMode', language)}
-          >
+          <Button variant="ghost" size="icon" className="rounded-xl" onClick={toggleTheme} title={theme === 'light' ? t('darkMode', language) : t('lightMode', language)}>
             {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
           {user ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Link to="/bookmarks">
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" className="rounded-xl">
                   <Bookmark className="h-4 w-4" />
                 </Button>
               </Link>
               <Link to="/profile">
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" className="rounded-xl">
                   <User className="h-4 w-4" />
                 </Button>
               </Link>
             </div>
           ) : (
             <Link to="/auth">
-              <Button size="sm" className="bg-saffron text-white hover:bg-saffron/90">
+              <Button size="sm" className="rounded-xl bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90">
                 {t('login', language)}
               </Button>
             </Link>
