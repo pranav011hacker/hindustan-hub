@@ -5,7 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const MAX_SOURCE_COUNT = 10;
 const NEWS_WINDOW_HOURS = 48;
 
 const RSS_FEEDS = [
@@ -22,19 +21,24 @@ const RSS_FEEDS = [
 ];
 
 function extractImageUrl(item: string): string | null {
-  const mediaMatch = item.match(/<media:content[^>]+url="([^"]+)"/);
-  if (mediaMatch) return mediaMatch[1];
-  const enclosureMatch = item.match(/<enclosure[^>]+url="([^"]+)"/);
-  if (enclosureMatch) return enclosureMatch[1];
-  const imgMatch = item.match(/<img[^>]+src="([^"]+)"/);
-  if (imgMatch) return imgMatch[1];
-  const thumbnailMatch = item.match(/<media:thumbnail[^>]+url="([^"]+)"/);
-  if (thumbnailMatch) return thumbnailMatch[1];
+  const patterns = [
+    /<media:content[^>]+url="([^"]+)"/,
+    /<media:thumbnail[^>]+url="([^"]+)"/,
+    /<enclosure[^>]+url="([^"]+)"/,
+    /<img[^>]+src="([^"]+)"/,
+    /&lt;img[^&]*src=&quot;([^&]+)&quot;/,
+    /&lt;img[^&]*src="([^"]+)"/,
+  ];
+  for (const p of patterns) {
+    const m = item.match(p);
+    if (m) return m[1];
+  }
   return null;
 }
 
 function stripHtml(html: string): string {
   return html
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/<[^>]*>/g, '')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -47,13 +51,19 @@ function stripHtml(html: string): string {
 
 function parseRssItems(xml: string): Array<{ title: string; description: string; link: string; pubDate: string; imageUrl: string | null }> {
   const items: Array<{ title: string; description: string; link: string; pubDate: string; imageUrl: string | null }> = [];
-  const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+  const itemMatches = xml.match(/<item[\s>]([\s\S]*?)<\/item>/g) || [];
 
-  for (const item of itemMatches.slice(0, 20)) {
-    const title = stripHtml((item.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '');
-    const description = stripHtml((item.match(/<description>([\s\S]*?)<\/description>/) || [])[1] || '');
-    const link = ((item.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
-    const pubDate = ((item.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
+  for (const item of itemMatches.slice(0, 25)) {
+    const titleMatch = item.match(/<title[^>]*>([\s\S]*?)<\/title>/);
+    const descMatch = item.match(/<description[^>]*>([\s\S]*?)<\/description>/);
+    const linkMatch = item.match(/<link[^>]*>([\s\S]*?)<\/link>/);
+    const pubDateMatch = item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
+    const dcDateMatch = item.match(/<dc:date[^>]*>([\s\S]*?)<\/dc:date>/);
+
+    const title = stripHtml(titleMatch?.[1] || '');
+    const description = stripHtml(descMatch?.[1] || '');
+    const link = stripHtml(linkMatch?.[1] || '');
+    const pubDate = stripHtml(pubDateMatch?.[1] || dcDateMatch?.[1] || '');
     const imageUrl = extractImageUrl(item);
 
     if (title && link) {
@@ -61,15 +71,6 @@ function parseRssItems(xml: string): Array<{ title: string; description: string;
     }
   }
   return items;
-}
-
-function isWithinWindow(isoDate: string, windowHours: number): boolean {
-  const time = new Date(isoDate).getTime();
-  if (Number.isNaN(time)) return false;
-
-  const now = Date.now();
-  const diffMs = now - time;
-  return diffMs >= 0 && diffMs <= windowHours * 60 * 60 * 1000;
 }
 
 Deno.serve(async (req) => {
@@ -87,28 +88,56 @@ Deno.serve(async (req) => {
     let totalInserted = 0;
     let totalErrors = 0;
     let totalSkipped = 0;
+    let totalParsed = 0;
+    const feedResults: Record<string, string> = {};
 
-    for (const feed of RSS_FEEDS.slice(0, MAX_SOURCE_COUNT)) {
+    for (const feed of RSS_FEEDS) {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
         const response = await fetch(feed.url, {
-          headers: { 'User-Agent': 'HindustanAI/1.0' },
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; HindustanAI/1.0)',
+            'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+          },
+          signal: controller.signal,
+        }).catch(e => {
+          console.error(`Network error ${feed.source}: ${e.message}`);
+          return null;
         });
 
-        if (!response.ok) {
-          console.error(`Failed to fetch ${feed.source}: ${response.status}`);
+        clearTimeout(timeout);
+
+        if (!response || !response.ok) {
+          const status = response ? response.status : 'network_error';
+          console.error(`Failed ${feed.source}: ${status}`);
+          feedResults[feed.source] = `failed:${status}`;
           totalErrors++;
           continue;
         }
 
         const xml = await response.text();
         const items = parseRssItems(xml);
+        console.log(`${feed.source}: parsed ${items.length} items`);
+        totalParsed += items.length;
 
+        let feedInserted = 0;
         for (const item of items) {
-          const publishedAt = item.pubDate ? new Date(item.pubDate).toISOString() : null;
-
-          if (!publishedAt || !isWithinWindow(publishedAt, NEWS_WINDOW_HOURS)) {
-            totalSkipped++;
-            continue;
+          // Try to parse date; if unparseable, use current time (treat as fresh)
+          let publishedAt: string;
+          const parsed = new Date(item.pubDate);
+          if (item.pubDate && !isNaN(parsed.getTime())) {
+            // Check if within window
+            const diffMs = Date.now() - parsed.getTime();
+            if (diffMs < 0 || diffMs > NEWS_WINDOW_HOURS * 60 * 60 * 1000) {
+              totalSkipped++;
+              continue;
+            }
+            publishedAt = parsed.toISOString();
+          } else {
+            // No valid date - use now so it appears as fresh
+            publishedAt = new Date().toISOString();
           }
 
           const { error } = await supabase.from('articles').upsert(
@@ -125,21 +154,29 @@ Deno.serve(async (req) => {
           );
 
           if (error) {
+            console.error(`Insert error ${feed.source}: ${error.message}`);
             totalErrors++;
           } else {
+            feedInserted++;
             totalInserted++;
           }
         }
+        feedResults[feed.source] = `ok:${feedInserted}/${items.length}`;
       } catch (feedError) {
-        console.error(`Error processing feed ${feed.source}:`, feedError);
+        console.error(`Error ${feed.source}:`, feedError);
+        feedResults[feed.source] = 'exception';
         totalErrors++;
       }
     }
 
+    // Clean old articles
     await supabase.from('articles').delete().lt('published_at', cutoffIso);
 
+    console.log(`Done: inserted=${totalInserted}, parsed=${totalParsed}, skipped=${totalSkipped}, errors=${totalErrors}`);
+    console.log('Feed results:', JSON.stringify(feedResults));
+
     return new Response(
-      JSON.stringify({ success: true, inserted: totalInserted, skipped: totalSkipped, errors: totalErrors, sourceCount: MAX_SOURCE_COUNT }),
+      JSON.stringify({ success: true, inserted: totalInserted, parsed: totalParsed, skipped: totalSkipped, errors: totalErrors, feeds: feedResults }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
