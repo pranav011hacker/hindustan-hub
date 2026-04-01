@@ -27,7 +27,6 @@ function extractImageUrl(item: string): string | null {
     /<enclosure[^>]+url="([^"]+)"/,
     /<img[^>]+src="([^"]+)"/,
     /&lt;img[^&]*src=&quot;([^&]+)&quot;/,
-    /&lt;img[^&]*src="([^"]+)"/,
   ];
   for (const p of patterns) {
     const m = item.match(p);
@@ -49,28 +48,60 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-function parseRssItems(xml: string): Array<{ title: string; description: string; link: string; pubDate: string; imageUrl: string | null }> {
-  const items: Array<{ title: string; description: string; link: string; pubDate: string; imageUrl: string | null }> = [];
+interface ParsedItem {
+  title: string;
+  description: string;
+  link: string;
+  pubDate: string;
+  imageUrl: string | null;
+  source: string;
+  category: string;
+}
+
+function parseRssItems(xml: string, source: string, category: string): ParsedItem[] {
+  const items: ParsedItem[] = [];
   const itemMatches = xml.match(/<item[\s>]([\s\S]*?)<\/item>/g) || [];
 
-  for (const item of itemMatches.slice(0, 25)) {
-    const titleMatch = item.match(/<title[^>]*>([\s\S]*?)<\/title>/);
-    const descMatch = item.match(/<description[^>]*>([\s\S]*?)<\/description>/);
-    const linkMatch = item.match(/<link[^>]*>([\s\S]*?)<\/link>/);
-    const pubDateMatch = item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
-    const dcDateMatch = item.match(/<dc:date[^>]*>([\s\S]*?)<\/dc:date>/);
-
-    const title = stripHtml(titleMatch?.[1] || '');
-    const description = stripHtml(descMatch?.[1] || '');
-    const link = stripHtml(linkMatch?.[1] || '');
-    const pubDate = stripHtml(pubDateMatch?.[1] || dcDateMatch?.[1] || '');
+  for (const item of itemMatches.slice(0, 20)) {
+    const title = stripHtml((item.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1] || '');
+    const description = stripHtml((item.match(/<description[^>]*>([\s\S]*?)<\/description>/) || [])[1] || '');
+    const link = stripHtml((item.match(/<link[^>]*>([\s\S]*?)<\/link>/) || [])[1] || '');
+    const pubDate = stripHtml(
+      (item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/) || [])[1] ||
+      (item.match(/<dc:date[^>]*>([\s\S]*?)<\/dc:date>/) || [])[1] || ''
+    );
     const imageUrl = extractImageUrl(item);
 
     if (title && link) {
-      items.push({ title, description, link, pubDate, imageUrl });
+      items.push({ title, description, link, pubDate, imageUrl, source, category });
     }
   }
   return items;
+}
+
+async function fetchFeed(feed: { url: string; source: string; category: string }): Promise<{ source: string; items: ParsedItem[]; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(feed.url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; HindustanAI/1.0)',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return { source: feed.source, items: [], error: `http:${response.status}` };
+    }
+
+    const xml = await response.text();
+    const items = parseRssItems(xml, feed.source, feed.category);
+    return { source: feed.source, items };
+  } catch (e) {
+    return { source: feed.source, items: [], error: e.message?.substring(0, 50) };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -83,104 +114,85 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const cutoffIso = new Date(Date.now() - NEWS_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+    const cutoffMs = NEWS_WINDOW_HOURS * 60 * 60 * 1000;
+    const cutoffIso = new Date(Date.now() - cutoffMs).toISOString();
+
+    // Fetch all feeds in parallel
+    const results = await Promise.allSettled(RSS_FEEDS.map(fetchFeed));
 
     let totalInserted = 0;
-    let totalErrors = 0;
     let totalSkipped = 0;
-    let totalParsed = 0;
+    let totalErrors = 0;
     const feedResults: Record<string, string> = {};
 
-    for (const feed of RSS_FEEDS) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-
-        const response = await fetch(feed.url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; HindustanAI/1.0)',
-            'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-          },
-          signal: controller.signal,
-        }).catch(e => {
-          console.error(`Network error ${feed.source}: ${e.message}`);
-          return null;
-        });
-
-        clearTimeout(timeout);
-
-        if (!response || !response.ok) {
-          const status = response ? response.status : 'network_error';
-          console.error(`Failed ${feed.source}: ${status}`);
-          feedResults[feed.source] = `failed:${status}`;
+    // Collect all items
+    const allItems: ParsedItem[] = [];
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        const { source, items, error } = r.value;
+        if (error) {
+          feedResults[source] = `fail:${error}`;
           totalErrors++;
+        } else {
+          feedResults[source] = `parsed:${items.length}`;
+          allItems.push(...items);
+        }
+      }
+    }
+
+    console.log(`Parsed ${allItems.length} total items from ${RSS_FEEDS.length} feeds`);
+
+    // Batch upsert items
+    const toUpsert: Array<Record<string, unknown>> = [];
+    for (const item of allItems) {
+      let publishedAt: string;
+      const parsed = new Date(item.pubDate);
+      if (item.pubDate && !isNaN(parsed.getTime())) {
+        const diffMs = Date.now() - parsed.getTime();
+        if (diffMs < 0 || diffMs > cutoffMs) {
+          totalSkipped++;
           continue;
         }
+        publishedAt = parsed.toISOString();
+      } else {
+        publishedAt = new Date().toISOString();
+      }
 
-        const xml = await response.text();
-        const items = parseRssItems(xml);
-        console.log(`${feed.source}: parsed ${items.length} items`);
-        totalParsed += items.length;
+      toUpsert.push({
+        title: item.title.substring(0, 500),
+        description: item.description.substring(0, 1000),
+        source: item.source,
+        source_url: item.link,
+        image_url: item.imageUrl,
+        category: item.category,
+        published_at: publishedAt,
+      });
+    }
 
-        let feedInserted = 0;
-        for (const item of items) {
-          // Try to parse date; if unparseable, use current time (treat as fresh)
-          let publishedAt: string;
-          const parsed = new Date(item.pubDate);
-          if (item.pubDate && !isNaN(parsed.getTime())) {
-            // Check if within window
-            const diffMs = Date.now() - parsed.getTime();
-            if (diffMs < 0 || diffMs > NEWS_WINDOW_HOURS * 60 * 60 * 1000) {
-              totalSkipped++;
-              continue;
-            }
-            publishedAt = parsed.toISOString();
-          } else {
-            // No valid date - use now so it appears as fresh
-            publishedAt = new Date().toISOString();
-          }
-
-          const { error } = await supabase.from('articles').upsert(
-            {
-              title: item.title.substring(0, 500),
-              description: item.description.substring(0, 1000),
-              source: feed.source,
-              source_url: item.link,
-              image_url: item.imageUrl,
-              category: feed.category,
-              published_at: publishedAt,
-            },
-            { onConflict: 'source_url' }
-          );
-
-          if (error) {
-            console.error(`Insert error ${feed.source}: ${error.message}`);
-            totalErrors++;
-          } else {
-            feedInserted++;
-            totalInserted++;
-          }
-        }
-        feedResults[feed.source] = `ok:${feedInserted}/${items.length}`;
-      } catch (feedError) {
-        console.error(`Error ${feed.source}:`, feedError);
-        feedResults[feed.source] = 'exception';
-        totalErrors++;
+    // Upsert in batches of 50
+    for (let i = 0; i < toUpsert.length; i += 50) {
+      const batch = toUpsert.slice(i, i + 50);
+      const { error } = await supabase.from('articles').upsert(batch, { onConflict: 'source_url' });
+      if (error) {
+        console.error(`Batch upsert error: ${error.message}`);
+        totalErrors += batch.length;
+      } else {
+        totalInserted += batch.length;
       }
     }
 
     // Clean old articles
     await supabase.from('articles').delete().lt('published_at', cutoffIso);
 
-    console.log(`Done: inserted=${totalInserted}, parsed=${totalParsed}, skipped=${totalSkipped}, errors=${totalErrors}`);
-    console.log('Feed results:', JSON.stringify(feedResults));
+    console.log(`Done: inserted=${totalInserted}, skipped=${totalSkipped}, errors=${totalErrors}`);
+    console.log('Feeds:', JSON.stringify(feedResults));
 
     return new Response(
-      JSON.stringify({ success: true, inserted: totalInserted, parsed: totalParsed, skipped: totalSkipped, errors: totalErrors, feeds: feedResults }),
+      JSON.stringify({ success: true, inserted: totalInserted, skipped: totalSkipped, errors: totalErrors, feeds: feedResults }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('RSS fetch error:', error);
+    console.error('RSS error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
