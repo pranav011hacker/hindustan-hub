@@ -100,7 +100,7 @@ async function fetchFeed(feed: { url: string; source: string; category: string }
     const items = parseRssItems(xml, feed.source, feed.category);
     return { source: feed.source, items };
   } catch (e) {
-    return { source: feed.source, items: [], error: e.message?.substring(0, 50) };
+    return { source: feed.source, items: [], error: (e as Error).message?.substring(0, 50) };
   }
 }
 
