@@ -100,7 +100,7 @@ async function fetchFeed(feed: { url: string; source: string; category: string }
     const items = parseRssItems(xml, feed.source, feed.category);
     return { source: feed.source, items };
   } catch (e) {
-    return { source: feed.source, items: [], error: e.message?.substring(0, 50) };
+    return { source: feed.source, items: [], error: (e as Error).message?.substring(0, 50) };
   }
 }
 
@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('RSS error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

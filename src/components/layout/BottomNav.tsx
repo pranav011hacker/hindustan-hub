@@ -19,19 +19,21 @@ const BottomNav: React.FC = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/95 backdrop-blur-lg md:hidden">
-      <div className="flex items-center justify-around py-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/95 backdrop-blur-xl md:hidden bottom-nav-shadow">
+      <div className="flex items-center justify-around py-1.5 pb-[env(safe-area-inset-bottom)]">
         {items.map(item => {
           const isActive = location.pathname === item.path;
           return (
             <Link
               key={item.label}
               to={item.path}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 text-xs transition-colors ${
-                isActive ? 'text-primary' : 'text-muted-foreground'
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 text-[10px] font-medium transition-all ${
+                isActive ? 'text-primary scale-105' : 'text-muted-foreground'
               }`}
             >
-              <item.icon className={`h-5 w-5 ${isActive ? 'text-saffron' : ''}`} />
+              <div className={`p-1 rounded-lg transition-colors ${isActive ? 'bg-primary/10' : ''}`}>
+                <item.icon className={`h-4.5 w-4.5 ${isActive ? 'text-primary' : ''}`} style={{ width: 20, height: 20 }} />
+              </div>
               <span>{item.label}</span>
             </Link>
           );

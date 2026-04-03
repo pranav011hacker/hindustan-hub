@@ -6,9 +6,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { t } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const Header: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage } = useLanguage();
   const location = useLocation();
@@ -21,54 +22,66 @@ const Header: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-50 glass-card border-b">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl hero-gradient relative">
-            <span className="relative z-10 text-lg font-black text-primary-foreground">H</span>
+      <div className="container mx-auto flex h-14 items-center justify-between px-4">
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg hero-gradient relative shadow-sm group-hover:shadow-md transition-shadow">
+            <span className="relative z-10 text-sm font-black text-primary-foreground">H</span>
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold text-foreground tracking-tight">{t('appName', language)}</h1>
+            <h1 className="text-base font-bold text-foreground tracking-tight">{t('appName', language)}</h1>
           </div>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1">
-          {navItems.map(item => (
-            <Link key={item.path} to={item.path}>
-              <Button
-                variant={location.pathname === item.path ? 'default' : 'ghost'}
-                size="sm"
-                className={`gap-2 rounded-xl ${location.pathname === item.path ? 'bg-gradient-to-r from-primary to-primary/80' : ''}`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Button>
-            </Link>
-          ))}
+        <nav className="hidden md:flex items-center gap-0.5">
+          {navItems.map(item => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link key={item.path} to={item.path}>
+                <Button
+                  variant={isActive ? 'default' : 'ghost'}
+                  size="sm"
+                  className={`gap-1.5 rounded-lg text-xs h-8 ${isActive ? 'bg-gradient-to-r from-primary to-primary/80 shadow-sm' : 'hover:bg-muted'}`}
+                >
+                  <item.icon className="h-3.5 w-3.5" />
+                  {item.label}
+                </Button>
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="flex items-center gap-1.5">
-          <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')} title={t('language', language)}>
-            <Globe className="h-4 w-4" />
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-lg h-8 w-8"
+            onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+            title={t('language', language)}
+          >
+            <span className="text-xs font-bold">{language === 'en' ? 'हि' : 'EN'}</span>
           </Button>
-          <Button variant="ghost" size="icon" className="rounded-xl" onClick={toggleTheme} title={theme === 'light' ? t('darkMode', language) : t('lightMode', language)}>
-            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          <Button variant="ghost" size="icon" className="rounded-lg h-8 w-8" onClick={toggleTheme}>
+            {theme === 'light' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
           </Button>
           {user ? (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <Link to="/bookmarks">
-                <Button variant="ghost" size="icon" className="rounded-xl">
-                  <Bookmark className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="rounded-lg h-8 w-8">
+                  <Bookmark className="h-3.5 w-3.5" />
                 </Button>
               </Link>
               <Link to="/profile">
-                <Button variant="ghost" size="icon" className="rounded-xl">
-                  <User className="h-4 w-4" />
-                </Button>
+                <Avatar className="h-7 w-7 cursor-pointer ring-2 ring-primary/20 hover:ring-primary/50 transition-all">
+                  <AvatarImage src={profile?.avatar_url || ''} />
+                  <AvatarFallback className="text-[10px] bg-gradient-to-br from-primary to-accent text-primary-foreground font-bold">
+                    {(profile?.display_name || user?.email || 'U')[0].toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
               </Link>
             </div>
           ) : (
             <Link to="/auth">
-              <Button size="sm" className="rounded-xl bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90">
+              <Button size="sm" className="rounded-lg h-8 bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 shadow-sm text-xs font-semibold px-4">
                 {t('login', language)}
               </Button>
             </Link>
